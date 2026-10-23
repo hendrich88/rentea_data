@@ -7,13 +7,13 @@
   },
   {
     "code": "5_1_a",
-    "name": "a) Investiční cenné papíry < 5%",
+    "name": "a) Investiční cenné papíry < 5 %",
     "limit_type": "max",
     "limit_rate": 0.05
   },
   {
     "code": "5_1_b_1",
-    "name": "b) 1) Investiční cenné papíry >= 5%",
+    "name": "b) 1) Investiční cenné papíry >= 5 %",
     "limit_type": "max",
     "limit_rate": 0.1
   },
