@@ -20,7 +20,7 @@
   {
     "code": "5_1_b_2",
     "name": "b) 2) Celkem investiční cenné papíry",
-    "limit_type": "max total",
+    "limit_type": "max",
     "limit_rate": 0.4
   },
   {
