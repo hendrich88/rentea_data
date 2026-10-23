@@ -1,0 +1,34 @@
+name: Denní update portfolia a cen
+
+on:
+  schedule:
+    # Spustí se každý den v 6:00 UTC (ráno)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Umožňuje spustit skript kdykoliv ručně tlačítkem na webu
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Stažení repozitáře
+        uses: actions/checkout@v4
+
+      - name: 2. Nastavení Pythonu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 3. Instalace potřebných knihoven
+        run: |
+          pip install pandas yfinance
+
+      - name: 4. Spuštění skriptu
+        run: python update_data.py
+
+      - name: 5. Uložení a odeslání změn zpět na GitHub
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "action@github.com"
+          git add prices_history.json portfolio_final.json
+          git commit -m "Automatický denní update dat: $(date +'%Y-%m-%d')" || exit 0
+          git push
