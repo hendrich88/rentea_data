@@ -1,0 +1,86 @@
+[
+  {
+    "code": "5_1",
+    "name": "5.1 Jedna osoba kromě ČR nebo ČNB",
+    "limit_type": null,
+    "limit_rate": null
+  },
+  {
+    "code": "5_1_a",
+    "name": "a) Investiční cenné papíry < 5%",
+    "limit_type": "max",
+    "limit_rate": 0.05
+  },
+  {
+    "code": "5_1_b_1",
+    "name": "b) 1) Investiční cenné papíry >= 5%",
+    "limit_type": "max",
+    "limit_rate": 0.1
+  },
+  {
+    "code": "5_1_b_2",
+    "name": "b) 2)Celkem investiční cenné papíry",
+    "limit_type": "max total",
+    "limit_rate": 0.4
+  },
+  {
+    "code": "5_1_c",
+    "name": "c) Dluhopisy",
+    "limit_type": "max",
+    "limit_rate": 0.2
+  },
+  {
+    "code": "5_1_d",
+    "name": "d) Vklady u banky",
+    "limit_type": "max",
+    "limit_rate": 0.1
+  },
+  {
+    "code": "5_1_f",
+    "name": "f) Součet a), d), e) vůči jedné osobě",
+    "limit_type": "max",
+    "limit_rate": 0.1
+  },
+  {
+    "code": "5_1_g",
+    "name": "g) Součet a), b), c), d), e)",
+    "limit_type": "max",
+    "limit_rate": 0.35
+  },
+  {
+    "code": "5_3",
+    "name": "5.3 Cenné papíry kolektivního investování",
+    "limit_type": null,
+    "limit_rate": null
+  },
+  {
+    "code": "5_3_a",
+    "name": "a) ICP vydávané jedním fondem",
+    "limit_type": "max",
+    "limit_rate": 0.2
+  },
+  {
+    "code": "5_3_b",
+    "name": "b) ICP vydávané fondy celkem",
+    "limit_type": "max",
+    "limit_rate": 0.8
+  },
+  {
+    "code": "5_3_c",
+    "name": "c) ICP speciálních fondů v rámci b)",
+    "limit_type": "max",
+    "limit_rate": 0.3
+  },
+  {
+    "code": "5_3_d",
+    "name": "d) ICP speciálních fondů nekopírujících index v rámci c)",
+    "limit_type": "max",
+    "limit_rate": 0.1
+  },
+  {
+    "code": "5_3_e",
+    "name": "e) Součet investic podle b) vůči jedné osobě",
+    "limit_type": "max",
+    "limit_rate": 0.35
+  }
+]
