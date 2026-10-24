@@ -28,9 +28,12 @@ jobs:
 
       - name: 5. Commit a push změn
         run: |
+          pwd && ls -la
+          git status --short
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add portfolio_final.json prices_history_final.json
+          git add -A
+          git diff --cached --stat
           if git diff --cached --quiet; then
             echo "Žádné změny k uložení."
           else
