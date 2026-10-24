@@ -4,10 +4,27 @@ import pandas as pd
 import yfinance as yf
 
 # ==========================================
-# 1. ČÁST: Stažení cen a aktualizace prices_history.json
+# 1. NAČTENÍ PORTFOLIA ZE SOUBORU
+# ==========================================
+portfolio_file = "portfolio_final.json"
+
+if os.path.exists(portfolio_file):
+    with open(portfolio_file, "r", encoding="utf-8") as f:
+        existing_data = json.load(f)
+    df_existing = pd.DataFrame(existing_data)
+    
+    if "date" in df_existing.columns and not df_existing.empty:
+        latest_existing_date = df_existing["date"].max()
+        df_portfolio = df_existing[df_existing["date"] == latest_existing_date][["isin", "amount", "currency"]].copy()
+    else:
+        raise ValueError("Soubor portfolio_final.json neobsahuje sloupec 'date' nebo je prázdný!")
+else:
+    raise FileNotFoundError("Soubor portfolio_final.json nebyl nalezen!")
+
+# ==========================================
+# 2. ČÁST: Stažení cen a výpočet prices_history_final.json
 # ==========================================
 
-# Slovník pro mapování tickerů na ISINy
 ticker_to_isin = {
     "P500.DE": "IE00B3YCGJ38",
     "XRS2.DE": "IE00BJZ2DD79",
@@ -62,13 +79,54 @@ other_cols = [col for col in closes.columns if col not in currency_cols]
 closes = closes[other_cols + currency_cols]
 
 closes.columns.name = None
-result_df = closes.round(2)
+df_prices = closes.copy()
 
-df_prices = result_df.copy()
+# --- Rozšíření o value_{isin}, value_fund a share_{isin} ---
+df_prices_extended = df_prices.copy()
 
-# Uložení prices_history.json (historie cen)
+currency_to_column = {
+    "EUR": "EURCZK",
+    "USD": "USDCZK",
+    "GBPp": "GBPp"
+}
+
+value_columns = []
+
+for index, row in df_portfolio.iterrows():
+    isin = row["isin"]
+    amount = row["amount"]
+    currency = row["currency"]
+    
+    fx_col = currency_to_column.get(currency)
+    
+    if isin in df_prices_extended.columns and fx_col in df_prices_extended.columns:
+        col_name = f"value_{isin}"
+        df_prices_extended[col_name] = (
+            df_prices_extended[isin] * amount * df_prices_extended[fx_col]
+        ).fillna(0).round(0).astype(int)
+        value_columns.append(col_name)
+
+remain_assets = 5766672150
+
+df_prices_extended["value_fund"] = (
+    df_prices_extended[value_columns].fillna(0).sum(axis=1) + remain_assets
+).round(0).astype(int)
+
+for col_name in value_columns:
+    isin = col_name.replace("value_", "")
+    share_col_name = f"share_{isin}"
+    df_prices_extended[share_col_name] = (
+        df_prices_extended[col_name] / df_prices_extended["value_fund"]
+    ).fillna(0).round(4)
+
+result_df = df_prices_extended.round(2)
+
+if "Date" in result_df.columns:
+    result_df["Date"] = result_df["Date"].astype(str)
+
+# Uložení prices_history_final.json
 result_df_json = result_df.where(pd.notnull(result_df), None)
-prices_file = "prices_history.json"
+prices_file = "prices_history_final.json"
 data_dict = result_df_json.to_dict(orient="records")
 with open(prices_file, "w", encoding="utf-8") as f:
     json.dump(data_dict, f, ensure_ascii=False, indent=4)
@@ -77,46 +135,17 @@ print(f"Ceny úspěšně uloženy do {prices_file}!")
 
 
 # ==========================================
-# 2. ČÁST: Kumulativní aktualizace portfolio_final.json
+# 3. ČÁST: Kumulativní aktualizace portfolio_final.json
 # ==========================================
 
-# Celková hodnota aktiv pro výpočet podílu
 assets_total = 11704226000
-
-# 1. Doplnění chybějících hodnot (NaN) z předchozích dní
 df_prices_filled = df_prices.ffill()
-
-# 2. Získání posledního řádku (dnešní/nejnovější data)
 last_row = df_prices_filled.iloc[-1]
 last_date = last_row["Date"]
 
-# 3. Načtení struktury portfolia ze stávajícího portfolio_final.json
-portfolio_file = "portfolio_final.json"
-
-if os.path.exists(portfolio_file):
-    with open(portfolio_file, "r", encoding="utf-8") as f:
-        existing_data = json.load(f)
-    df_existing = pd.DataFrame(existing_data)
-    
-    # Najdeme nejnovější datum, které už v portfoliu je, abychom z něj vzali aktuální množství (amount) a měny (currency)
-    if "date" in df_existing.columns and not df_existing.empty:
-        latest_existing_date = df_existing["date"].max()
-        df_portfolio = df_existing[df_existing["date"] == latest_existing_date][["isin", "amount", "currency"]].copy()
-    else:
-        raise ValueError("Soubor portfolio_final.json neobsahuje sloupec 'date' nebo je prázdný!")
-else:
-    raise FileNotFoundError("Soubor portfolio_final.json nebyl nalezen! Musí existovat, aby skript věděl, jaká aktiva v portfoliu má.")
-
-# 4. Příprava dat pro dnešní den
 df_today = df_portfolio.copy()
 df_today["date"] = last_date
 df_today["price"] = df_today["isin"].map(last_row)
-
-currency_to_column = {
-    "EUR": "EURCZK",
-    "USD": "USDCZK",
-    "GBPp": "GBPp"
-}
 
 df_today["fx_rate"] = df_today["currency"].map(currency_to_column).map(last_row)
 df_today["value"] = df_today["amount"] * df_today["price"] * df_today["fx_rate"]
@@ -124,18 +153,17 @@ df_today["share"] = df_today["value"] / assets_total
 
 df_today = df_today.round(4)
 
-# 5. Spojení se stávající historií portfolia (vyčištění duplicit pro dnešek, pokud by se skript pustil víckrát)
 if "date" in df_existing.columns:
     df_existing = df_existing[df_existing["date"] != last_date]
 
 df_combined = pd.concat([df_existing, df_today], ignore_index=True)
-
-# Ošetření NaN na null pro JSON
 df_combined_json = df_combined.where(pd.notnull(df_combined), None)
 
-# Uložení kompletní historie zpět do portfolio_final.json
-portfolio_dict = df_combined_json.to_dict(orient="records")
+with open(portfolio_file, "w", encoding="utf-8`") as f:
+    # Opraveno zápis do portfolio_final.json
+    pass
+
 with open(portfolio_file, "w", encoding="utf-8") as f:
-    json.dump(portfolio_dict, f, ensure_ascii=False, indent=4)
+    json.dump(df_combined_json.to_dict(orient="records"), f, ensure_ascii=False, indent=4)
 
 print(f"Portfolio úspěšně aktualizováno – přidán den {last_date} do {portfolio_file}!")
