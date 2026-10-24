@@ -2,12 +2,16 @@ name: Denní update portfolia a cen
 
 on:
   schedule:
-    # Spustí se každý den v 6:00 UTC (ráno)
+    # Spustí se v 6:00 UTC, pondělí až sobota (zpracuje předchozí obchodní den)
     - cron: '0 6 * * 1-6'
   workflow_dispatch: # Umožňuje spustit skript kdykoliv ručně tlačítkem na webu
 
 permissions:
   contents: write # nutné pro push změn zpět do repozitáře
+
+concurrency:
+  group: portfolio-update
+  cancel-in-progress: false # druhý běh počká na dokončení prvního
 
 jobs:
   run-script:
@@ -34,8 +38,16 @@ jobs:
           git add portfolio_final.json prices_history_final.json
           if git diff --cached --quiet; then
             echo "Žádné změny k uložení."
-          else
-            git commit -m "Denní update dat $(date -u +'%Y-%m-%d')"
-            git pull --rebase origin main
-            git push
+            exit 0
           fi
+          git commit -m "Denní update dat $(date -u +'%Y-%m-%d')"
+          for i in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              exit 0
+            fi
+            echo "Push selhal, pokus $i, zkusím znovu..."
+            git rebase --abort 2>/dev/null || true
+            sleep 5
+          done
+          echo "Push se nepodařil ani po 3 pokusech."
+          exit 1
