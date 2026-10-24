@@ -144,13 +144,17 @@ print(f"Ceny úspěšně uloženy do {prices_file}!")
 
 
 # ==========================================
-# 3. ČÁST: Kumulativní aktualizace portfolio_final.json
+# 3. ČÁST: Kumulativní aktualizace portfolio_final.json (automaticky poslední den)
 # ==========================================
 
 assets_total = 11704226000
 df_prices_filled = df_prices.ffill()
+
+# Vezme automaticky poslední řádek ze stažených dat (což je nejnovější dostupný den v yfinance)
 last_row = df_prices_filled.iloc[-1]
 last_date = last_row["Date"]
+
+print(f"Zpracovávám nejnovější dostupný den: {last_date}")
 
 df_today = df_portfolio.copy()
 df_today["date"] = last_date
@@ -162,7 +166,7 @@ df_today["share"] = df_today["value"] / assets_total
 
 df_today = df_today.round(4)
 
-# Odstranění případného duplicitního záznamu pro dnešek v historii
+# Odstranění případného duplicitního záznamu pro tento den v historii
 if "date" in df_existing.columns:
     df_existing["date_str"] = df_existing["date"].astype(str)
     df_existing = df_existing[df_existing["date_str"] != last_date]
