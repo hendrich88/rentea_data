@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import pandas as pd
 import yfinance as yf
 
@@ -9,6 +10,11 @@ def to_ms(value):
     if isinstance(value, (int, float)) and not pd.isna(value):
         return int(value)
     return int(pd.Timestamp(value).value // 10**6)
+
+
+def to_records(df):
+    """DataFrame -> seznam slovníků, NaN se změní na None (validní JSON null)."""
+    return df.astype(object).where(pd.notnull(df), None).to_dict(orient="records")
 
 
 # ==========================================
@@ -27,7 +33,7 @@ if os.path.exists(portfolio_file):
 
         latest_date = df_existing["date"].max()
 
-        # Vezmeme kompletní řádky posledního dne jako šablonu (názvy, ID, typy atd.)
+        # Kompletní řádky posledního dne jako šablona (názvy, ID, typy atd.)
         df_latest_template = df_existing[df_existing["date"] == latest_date].copy()
     else:
         raise ValueError("Soubor portfolio_final.json neobsahuje sloupec 'date' nebo je prázdný!")
@@ -60,14 +66,49 @@ end_date = pd.Timestamp.today().strftime("%Y-%m-%d")
 
 print(f"Stahuji data od {start_date} do {end_date}...")
 
-data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+data = yf.download(tickers, start=start_date, end=end_date, progress=False, threads=False)
 
 if isinstance(data.columns, pd.MultiIndex):
-    closes = data["Close"]
+    close_raw = data["Close"]
 else:
-    closes = data
+    close_raw = data
 
-closes = closes.reset_index()
+# Zahodit řádky, kde chybí úplně všechno
+close_raw = close_raw.dropna(how="all")
+
+if close_raw.empty:
+    print("Yahoo nevrátilo žádná data. Nic neukládám.")
+    sys.exit(1)
+
+# ------------------------------------------
+# KONTROLA "VŠECHNO, NEBO NIC" (před jakýmkoli zápisem)
+# ------------------------------------------
+target_day = close_raw.index.max()
+
+print(f"Poslední platná cena podle tickeru (cílový den {target_day.date()}):")
+missing = []
+for t in tickers:
+    if t in close_raw.columns:
+        s = close_raw[t].dropna()
+        last_valid = s.index[-1].date() if not s.empty else "ŽÁDNÁ DATA"
+    else:
+        last_valid = "ŽÁDNÁ DATA"
+    print(f"  {t}: {last_valid}")
+
+    if t not in close_raw.columns or pd.isna(close_raw.loc[target_day, t]):
+        missing.append(t)
+
+if missing:
+    print(f"\nChybí data za {target_day.date()} pro: {', '.join(missing)}")
+    print("Nic neukládám, zkusí se to příště.")
+    sys.exit(1)
+
+print("Všechna data za cílový den jsou kompletní, pokračuji.\n")
+
+# ------------------------------------------
+# Příprava tabulky cen
+# ------------------------------------------
+closes = close_raw.reset_index()
 
 if "Date" in closes.columns:
     closes["Date"] = pd.to_datetime(closes["Date"]).dt.strftime("%Y-%m-%d")
@@ -91,7 +132,13 @@ closes = closes[other_cols + currency_cols]
 closes.columns.name = None
 df_prices = closes.copy()
 
-# Uložení prices_history_final.json (výpočet hodnot pro historii cen)
+# Přenést poslední známou cenu dopředu (svátky na jednotlivých burzách v historii)
+price_cols = [c for c in df_prices.columns if c != "Date"]
+df_prices[price_cols] = df_prices[price_cols].ffill()
+
+# ------------------------------------------
+# Uložení prices_history_final.json
+# ------------------------------------------
 df_prices_extended = df_prices.copy()
 currency_to_column = {"EUR": "EURCZK", "USD": "USDCZK", "GBPp": "GBPp"}
 value_columns = []
@@ -126,10 +173,7 @@ if "Date" in result_df.columns:
 
 prices_file = "prices_history_final.json"
 with open(prices_file, "w", encoding="utf-8") as f:
-    json.dump(
-        result_df.where(pd.notnull(result_df), None).to_dict(orient="records"),
-        f, ensure_ascii=False, indent=4,
-    )
+    json.dump(to_records(result_df), f, ensure_ascii=False, indent=4)
 
 print(f"Ceny uloženy do {prices_file}!")
 
@@ -138,12 +182,11 @@ print(f"Ceny uloženy do {prices_file}!")
 # 3. ČÁST: Aktualizace portfolio_final.json
 # ==========================================
 assets_total = 11704226000
-df_prices_filled = df_prices.ffill()
-last_row = df_prices_filled.iloc[-1]
+last_row = df_prices.iloc[-1]
 last_date_str = last_row["Date"]
 last_date_ms = to_ms(last_date_str)  # stejný formát jako v portfolio_final.json
 
-# Vezmeme šablonu a aktualizujeme u ní ceny, kurzy a hodnoty pro aktuální den
+# Šablona s aktualizovanými cenami, kurzy a hodnotami pro poslední den
 df_today = df_latest_template.copy()
 df_today["date"] = last_date_ms
 
@@ -154,8 +197,14 @@ for idx, row in df_today.iterrows():
     curr = row["currency"]
     fx_col = currency_to_column.get(curr)
 
-    price = prices_map.get(isin, row.get("price"))
-    fx_rate = prices_map.get(fx_col, row.get("fx_rate"))
+    price = prices_map.get(isin)
+    if price is None or pd.isna(price):
+        price = row["price"]
+
+    fx_rate = prices_map.get(fx_col)
+    if fx_rate is None or pd.isna(fx_rate):
+        fx_rate = row["fx_rate"]
+
     amount = row["amount"]
 
     df_today.loc[idx, "price"] = price
@@ -172,9 +221,6 @@ df_existing = df_existing[df_existing["date"] != last_date_ms]
 df_combined = pd.concat([df_existing, df_today], ignore_index=True)
 
 with open(portfolio_file, "w", encoding="utf-8") as f:
-    json.dump(
-        df_combined.where(pd.notnull(df_combined), None).to_dict(orient="records"),
-        f, ensure_ascii=False, indent=4,
-    )
+    json.dump(to_records(df_combined), f, ensure_ascii=False, indent=4)
 
 print(f"Portfolio úspěšně aktualizováno – přidán den {last_date_str}!")
