@@ -4,7 +4,7 @@ import pandas as pd
 import yfinance as yf
 
 # ==========================================
-# 1. NAČTENÍ KOMLETNÍHO PORTFOLIA ZE SOUBORU
+# 1. NAČTENÍ KOMPLETNÍHO PORTFOLIA ZE SOUBORU
 # ==========================================
 portfolio_file = "portfolio_final.json"
 
@@ -18,11 +18,11 @@ if os.path.exists(portfolio_file):
         df_existing["date_str"] = df_existing["date"].astype(str)
         latest_date_str = df_existing["date_str"].max()
         
-        # Vezmeme kompletní řádky nejnovějšího dne včetně všech metadat (ticker, ticker_name, counterparty atd.)
+        # Vezmeme KOMPLETNÍ řádky nejnovějšího dne včetně všech metadat (ticker, ticker_name, counterparty atd.)
         df_portfolio = df_existing[df_existing["date_str"] == latest_date_str].copy()
+        
         # Odstraníme dočasný pomocný sloupec
-        if "date_str" in df_existing.columns:
-            df_existing = df_existing.drop(columns=["date_str"])
+        df_existing = df_existing.drop(columns=["date_str"])
         if "date_str" in df_portfolio.columns:
             df_portfolio = df_portfolio.drop(columns=["date_str"])
     else:
@@ -133,7 +133,7 @@ result_df = df_prices_extended.round(2)
 if "Date" in result_df.columns:
     result_df["Date"] = result_df["Date"].astype(str)
 
-# 1. Uložení prices_history_final.json
+# Uložení prices_history_final.json
 result_df_json = result_df.where(pd.notnull(result_df), None)
 prices_file = "prices_history_final.json"
 data_dict = result_df_json.to_dict(orient="records")
@@ -144,22 +144,18 @@ print(f"Ceny úspěšně uloženy do {prices_file}!")
 
 
 # ==========================================
-# 3. ČÁST: Kumulativní aktualizace portfolio_final.json (automaticky poslední den)
+# 3. ČÁST: Kumulativní aktualizace portfolio_final.json
 # ==========================================
 
 assets_total = 11704226000
 df_prices_filled = df_prices.ffill()
-
-# Vezme automaticky poslední řádek ze stažených dat (což je nejnovější dostupný den v yfinance)
 last_row = df_prices_filled.iloc[-1]
 last_date = last_row["Date"]
 
-print(f"Zpracovávám nejnovější dostupný den: {last_date}")
-
+# Použijeme kopii celého df_portfolio, takže si zachováme veškerá metadata (ticker_name, ticker_id atd.)
 df_today = df_portfolio.copy()
 df_today["date"] = last_date
 df_today["price"] = df_today["isin"].map(last_row)
-
 df_today["fx_rate"] = df_today["currency"].map(currency_to_column).map(last_row)
 df_today["value"] = df_today["amount"] * df_today["price"] * df_today["fx_rate"]
 df_today["share"] = df_today["value"] / assets_total
