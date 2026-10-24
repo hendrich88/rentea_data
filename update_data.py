@@ -4,7 +4,7 @@ import pandas as pd
 import yfinance as yf
 
 # ==========================================
-# 1. NAČTENÍ PORTFOLIA ZE SOUBORU
+# 1. NAČTENÍ KOMLETNÍHO PORTFOLIA ZE SOUBORU
 # ==========================================
 portfolio_file = "portfolio_final.json"
 
@@ -14,8 +14,17 @@ if os.path.exists(portfolio_file):
     df_existing = pd.DataFrame(existing_data)
     
     if "date" in df_existing.columns and not df_existing.empty:
-        latest_existing_date = df_existing["date"].max()
-        df_portfolio = df_existing[df_existing["date"] == latest_existing_date][["isin", "amount", "currency"]].copy()
+        # Převedeme sloupec date na řetězce, abychom bezpečně našli nejnovější datum (string porovnání YYYY-MM-DD)
+        df_existing["date_str"] = df_existing["date"].astype(str)
+        latest_date_str = df_existing["date_str"].max()
+        
+        # Vezmeme kompletní řádky nejnovějšího dne včetně všech metadat (ticker, ticker_name, counterparty atd.)
+        df_portfolio = df_existing[df_existing["date_str"] == latest_date_str].copy()
+        # Odstraníme dočasný pomocný sloupec
+        if "date_str" in df_existing.columns:
+            df_existing = df_existing.drop(columns=["date_str"])
+        if "date_str" in df_portfolio.columns:
+            df_portfolio = df_portfolio.drop(columns=["date_str"])
     else:
         raise ValueError("Soubor portfolio_final.json neobsahuje sloupec 'date' nebo je prázdný!")
 else:
@@ -124,7 +133,7 @@ result_df = df_prices_extended.round(2)
 if "Date" in result_df.columns:
     result_df["Date"] = result_df["Date"].astype(str)
 
-# Uložení prices_history_final.json
+# 1. Uložení prices_history_final.json
 result_df_json = result_df.where(pd.notnull(result_df), None)
 prices_file = "prices_history_final.json"
 data_dict = result_df_json.to_dict(orient="records")
@@ -153,15 +162,14 @@ df_today["share"] = df_today["value"] / assets_total
 
 df_today = df_today.round(4)
 
+# Odstranění případného duplicitního záznamu pro dnešek v historii
 if "date" in df_existing.columns:
-    df_existing = df_existing[df_existing["date"] != last_date]
+    df_existing["date_str"] = df_existing["date"].astype(str)
+    df_existing = df_existing[df_existing["date_str"] != last_date]
+    df_existing = df_existing.drop(columns=["date_str"])
 
 df_combined = pd.concat([df_existing, df_today], ignore_index=True)
 df_combined_json = df_combined.where(pd.notnull(df_combined), None)
-
-with open(portfolio_file, "w", encoding="utf-8`") as f:
-    # Opraveno zápis do portfolio_final.json
-    pass
 
 with open(portfolio_file, "w", encoding="utf-8") as f:
     json.dump(df_combined_json.to_dict(orient="records"), f, ensure_ascii=False, indent=4)
