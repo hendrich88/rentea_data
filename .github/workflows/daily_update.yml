@@ -6,6 +6,10 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch: # Umožňuje spustit skript kdykoliv ručně tlačítkem na webu
 
+# DŮLEŽITÉ: Oprávnění pro zápis do repozitáře
+permissions:
+  contents: write
+
 jobs:
   run-script:
     runs-on: ubuntu-latest
@@ -25,4 +29,21 @@ jobs:
       - name: 4. Spuštění skriptu
         run: python update_data.py
 
-        
+      - name: 5. Uložení a odeslání změn zpět na GitHub
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "action@github.com"
+          
+          echo "=== Stav před pull/rebase ==="
+          git status
+          
+          git pull origin main --rebase
+          
+          echo "=== Stav po pull, přidávám soubory ==="
+          git add prices_history_final.json portfolio_final.json
+          git status
+          
+          git commit -m "Automatický denní update dat: $(date +'%Y-%m-%d')" || exit 0
+          
+          echo "=== Odesílám na GitHub ==="
+          git push
