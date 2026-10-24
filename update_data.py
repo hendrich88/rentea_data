@@ -77,6 +77,7 @@ else:
 close_raw = close_raw.dropna(how="all")
 
 if close_raw.empty:
+    # Skutečná chyba (výpadek Yahoo, síť) - běh záměrně skončí červeně
     print("Yahoo nevrátilo žádná data. Nic neukládám.")
     sys.exit(1)
 
@@ -99,9 +100,11 @@ for t in tickers:
         missing.append(t)
 
 if missing:
+    # Očekávaná situace (Yahoo data ještě nedoplnilo) - běh skončí úspěšně,
+    # nic se nezapíše a při dalším naplánovaném běhu se to zkusí znovu.
     print(f"\nChybí data za {target_day.date()} pro: {', '.join(missing)}")
     print("Nic neukládám, zkusí se to příště.")
-    sys.exit(1)
+    sys.exit(0)
 
 print("Všechna data za cílový den jsou kompletní, pokračuji.\n")
 
