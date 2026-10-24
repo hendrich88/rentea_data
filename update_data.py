@@ -3,6 +3,14 @@ import os
 import pandas as pd
 import yfinance as yf
 
+
+def to_ms(value):
+    """Převede datum (číslo v ms nebo řetězec) na milisekundy od epochy (půlnoc UTC)."""
+    if isinstance(value, (int, float)) and not pd.isna(value):
+        return int(value)
+    return int(pd.Timestamp(value).value // 10**6)
+
+
 # ==========================================
 # 1. NAČTENÍ PORTFOLIA A ŠABLONY METADAT
 # ==========================================
@@ -12,17 +20,15 @@ if os.path.exists(portfolio_file):
     with open(portfolio_file, "r", encoding="utf-8") as f:
         existing_data = json.load(f)
     df_existing = pd.DataFrame(existing_data)
-    
+
     if "date" in df_existing.columns and not df_existing.empty:
-        df_existing["date_str"] = df_existing["date"].astype(str)
-        latest_date_str = df_existing["date_str"].max()
-        
-        # Vezmeme kompletní řádky posledního dne jako šablonu (včetně názvů, ID, typů atd.)
-        df_latest_template = df_existing[df_existing["date_str"] == latest_date_str].copy()
-        
-        df_existing = df_existing.drop(columns=["date_str"])
-        if "date_str" in df_latest_template.columns:
-            df_latest_template = df_latest_template.drop(columns=["date_str"])
+        # Sjednocení formátu data na ms (pro případ smíšených typů)
+        df_existing["date"] = df_existing["date"].apply(to_ms)
+
+        latest_date = df_existing["date"].max()
+
+        # Vezmeme kompletní řádky posledního dne jako šablonu (názvy, ID, typy atd.)
+        df_latest_template = df_existing[df_existing["date"] == latest_date].copy()
     else:
         raise ValueError("Soubor portfolio_final.json neobsahuje sloupec 'date' nebo je prázdný!")
 else:
@@ -69,7 +75,7 @@ if "Date" in closes.columns:
 rename_dict = {
     "EURCZK=X": "EURCZK",
     "USDCZK=X": "USDCZK",
-    "GBPCZK=X": "GBP"
+    "GBPCZK=X": "GBP",
 }
 closes = closes.rename(columns=rename_dict)
 
@@ -120,7 +126,10 @@ if "Date" in result_df.columns:
 
 prices_file = "prices_history_final.json"
 with open(prices_file, "w", encoding="utf-8") as f:
-    json.dump(result_df.where(pd.notnull(result_df), None).to_dict(orient="records"), f, ensure_ascii=False, indent=4)
+    json.dump(
+        result_df.where(pd.notnull(result_df), None).to_dict(orient="records"),
+        f, ensure_ascii=False, indent=4,
+    )
 
 print(f"Ceny uloženy do {prices_file}!")
 
@@ -131,11 +140,12 @@ print(f"Ceny uloženy do {prices_file}!")
 assets_total = 11704226000
 df_prices_filled = df_prices.ffill()
 last_row = df_prices_filled.iloc[-1]
-last_date = last_row["Date"]
+last_date_str = last_row["Date"]
+last_date_ms = to_ms(last_date_str)  # stejný formát jako v portfolio_final.json
 
 # Vezmeme šablonu a aktualizujeme u ní ceny, kurzy a hodnoty pro aktuální den
 df_today = df_latest_template.copy()
-df_today["date"] = last_date
+df_today["date"] = last_date_ms
 
 prices_map = last_row.to_dict()
 
@@ -143,11 +153,11 @@ for idx, row in df_today.iterrows():
     isin = row["isin"]
     curr = row["currency"]
     fx_col = currency_to_column.get(curr)
-    
+
     price = prices_map.get(isin, row.get("price"))
     fx_rate = prices_map.get(fx_col, row.get("fx_rate"))
     amount = row["amount"]
-    
+
     df_today.loc[idx, "price"] = price
     df_today.loc[idx, "fx_rate"] = fx_rate
     val = amount * price * fx_rate
@@ -157,14 +167,14 @@ for idx, row in df_today.iterrows():
 df_today = df_today.round(4)
 
 # Odstranění duplicitního záznamu pro stejné datum
-if "date" in df_existing.columns:
-    df_existing["date_str"] = df_existing["date"].astype(str)
-    df_existing = df_existing[df_existing["date_str"] != last_date]
-    df_existing = df_existing.drop(columns=["date_str"])
+df_existing = df_existing[df_existing["date"] != last_date_ms]
 
 df_combined = pd.concat([df_existing, df_today], ignore_index=True)
 
 with open(portfolio_file, "w", encoding="utf-8") as f:
-    json.dump(df_combined.where(pd.notnull(df_combined), None).to_dict(orient="records"), f, ensure_ascii=False, indent=4)
+    json.dump(
+        df_combined.where(pd.notnull(df_combined), None).to_dict(orient="records"),
+        f, ensure_ascii=False, indent=4,
+    )
 
-print(f"Portfolio úspěšně aktualizováno – přidán den {last_date}!")
+print(f"Portfolio úspěšně aktualizováno – přidán den {last_date_str}!")
