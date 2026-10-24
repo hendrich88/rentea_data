@@ -2,13 +2,11 @@ name: Denní update portfolia a cen
 
 on:
   schedule:
-    # Spustí se každý den v 6:00 UTC (ráno)
     - cron: '0 6 * * *'
-  workflow_dispatch: # Umožňuje spustit skript kdykoliv ručně tlačítkem na webu
+  workflow_dispatch:
 
-# DŮLEŽITÉ: Oprávnění pro zápis do repozitáře
 permissions:
-  contents: write
+  contents: write   # nutné, aby workflow mohl pushovat do repozitáře
 
 jobs:
   run-script:
@@ -23,27 +21,19 @@ jobs:
           python-version: '3.10'
 
       - name: 3. Instalace potřebných knihoven
-        run: |
-          pip install pandas yfinance
+        run: pip install pandas yfinance
 
       - name: 4. Spuštění skriptu
         run: python update_data.py
 
-      - name: 5. Uložení a odeslání změn zpět na GitHub
+      - name: 5. Commit a push změn
         run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "action@github.com"
-          
-          echo "=== Stav před pull/rebase ==="
-          git status
-          
-          git pull origin main --rebase
-          
-          echo "=== Stav po pull, přidávám soubory ==="
-          git add prices_history_final.json portfolio_final.json
-          git status
-          
-          git commit -m "Automatický denní update dat: $(date +'%Y-%m-%d')" || exit 0
-          
-          echo "=== Odesílám na GitHub ==="
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add portfolio_final.json prices_history_final.json
+          if git diff --cached --quiet; then
+            echo "Žádné změny k uložení."
+          else
+            git commit -m "Denní update dat $(date -u +'%Y-%m-%d')"
+            git push
+          fi
