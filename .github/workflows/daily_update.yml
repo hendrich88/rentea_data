@@ -36,5 +36,6 @@ jobs:
             echo "Žádné změny k uložení."
           else
             git commit -m "Denní update dat $(date -u +'%Y-%m-%d')"
+            git pull --rebase origin main
             git push
           fi
