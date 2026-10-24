@@ -3,7 +3,7 @@ name: Denní update portfolia a cen
 on:
   schedule:
     # Spustí se každý den v 6:00 UTC (ráno)
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * 1-6'
   workflow_dispatch: # Umožňuje spustit skript kdykoliv ručně tlačítkem na webu
 
 permissions:
