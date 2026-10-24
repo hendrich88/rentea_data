@@ -1,0 +1,26 @@
+name: Sync JSON to dashboard
+on:
+  push:
+    branches: [main]
+    paths:
+      - limits.json
+      - portfolio_final.json
+      - prices_history_final.json
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hendrich88/rentea_risk_system
+          token: ${{ secrets.DASHBOARD_PAT }}
+          path: dashboard
+      - run: |
+          cp limits.json portfolio_final.json prices_history_final.json dashboard/
+          cd dashboard
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add limits.json portfolio_final.json prices_history_final.json
+          git diff --cached --quiet || git commit -m "Sync JSON from rentea_data"
+          git push
