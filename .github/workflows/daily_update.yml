@@ -25,10 +25,4 @@ jobs:
       - name: 4. Spuštění skriptu
         run: python update_data.py
 
-      - name: 5. Uložení a odeslání změn zpět na GitHub
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "action@github.com"
-          git add prices_history_final.json portfolio_final.json
-          git commit -m "Automatický denní update dat: $(date +'%Y-%m-%d')" || exit 0
-          git push
+        
