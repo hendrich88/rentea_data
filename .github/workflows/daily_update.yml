@@ -29,6 +29,6 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "action@github.com"
-          git add prices_history.json portfolio_final.json
+          git add prices_history_final.json portfolio_final.json
           git commit -m "Automatický denní update dat: $(date +'%Y-%m-%d')" || exit 0
           git push
