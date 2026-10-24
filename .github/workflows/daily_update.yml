@@ -2,8 +2,9 @@ name: Denní update portfolia a cen
 
 on:
   schedule:
-    # Spustí se v 6:00 UTC, pondělí až sobota (zpracuje předchozí obchodní den)
-    - cron: '0 6 * * 1-6'
+    # Opakované pokusy během dne (UTC), každý den včetně víkendu.
+    # Když Yahoo ještě nemá kompletní data, skript nic neuloží a zkusí se to znovu.
+    - cron: '0 6,12,15,18,21 * * *'
   workflow_dispatch: # Umožňuje spustit skript kdykoliv ručně tlačítkem na webu
 
 permissions:
